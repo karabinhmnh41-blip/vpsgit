@@ -1,0 +1,67 @@
+name: Cloud Linux Desktop Auto Run
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */5 * * *"
+
+concurrency:
+  group: vps-linux-runner
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 320
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pull & Start Linux Desktop (Ubuntu XFCE)
+        run: |
+          docker run -d --name ubuntu-desktop \
+            -p 6080:80 \
+            -e HTTP_PASSWORD=admin \
+            fredblgr/ubuntu-novnc:20.04
+
+      - name: Wait for Web VNC Port 6080
+        run: |
+          echo "⏳ Đang chờ Linux Desktop mở cổng Web VNC..."
+          for i in $(seq 1 30); do
+            if nc -z localhost 6080; then
+              echo "✅ Port 6080 đã sẵn sàng!"
+              break
+            fi
+            sleep 3
+          done
+
+      - name: Install Cloudflared & Tunnel
+        run: |
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+          nohup cloudflared tunnel --url http://localhost:6080 --no-autoupdate --protocol http2 --logfile cloudflared.log &
+          sleep 12
+
+      - name: Export Link
+        run: |
+          URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' cloudflared.log | head -1)
+          FULL="$URL/vnc.html?autoconnect=true"
+          
+          echo "### 🚀 LINK MỞ LINUX DESKTOP:" >> $GITHUB_STEP_SUMMARY
+          echo "[CLICK ĐỂ MỞ LINUX DESKTOP]($FULL)" >> $GITHUB_STEP_SUMMARY
+          echo "```" >> $GITHUB_STEP_SUMMARY
+          echo "$FULL" >> $GITHUB_STEP_SUMMARY
+          echo "```" >> $GITHUB_STEP_SUMMARY
+
+          echo "$FULL" > linux-link.txt
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add linux-link.txt
+          git commit -m "Update Linux link" || true
+          git push origin main --force
+
+      - name: Keep Alive (5h)
+        run: sleep 18000
