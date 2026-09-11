@@ -20,12 +20,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Pull & Start Linux Desktop (Ubuntu XFCE)
+      - name: Pull & Start Linux Desktop (Ubuntu LXDE)
         run: |
+          docker pull dorowu/ubuntu-desktop-lxde-vnc:focal
           docker run -d --name ubuntu-desktop \
             -p 6080:80 \
             -e HTTP_PASSWORD=admin \
-            fredblgr/ubuntu-novnc:20.04
+            dorowu/ubuntu-desktop-lxde-vnc:focal
 
       - name: Wait for Web VNC Port 6080
         run: |
@@ -48,7 +49,7 @@ jobs:
       - name: Export Link
         run: |
           URL=$(grep -oE 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' cloudflared.log | head -1)
-          FULL="$URL/vnc.html?autoconnect=true"
+          FULL="$URL/#/"
           
           echo "### 🚀 LINK MỞ LINUX DESKTOP:" >> $GITHUB_STEP_SUMMARY
           echo "[CLICK ĐỂ MỞ LINUX DESKTOP]($FULL)" >> $GITHUB_STEP_SUMMARY
